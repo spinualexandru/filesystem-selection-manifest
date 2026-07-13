@@ -1,0 +1,35 @@
+.config {
+  ghostty {
+    themes {
+      noctalia
+    }
+  }
+
+  fish {
+    config.fish
+
+    functions {
+      ff.fish
+      gitar.fish
+    }
+  }
+
+  micro {
+    settings.json
+  }
+
+  hypr {
+    **
+    !AGENTS.md
+  }
+
+  uwsm {
+    env
+  }
+
+  rog {
+    rog-control-center.cfg
+  }
+}
+
+.hidden

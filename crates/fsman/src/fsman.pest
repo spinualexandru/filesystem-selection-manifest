@@ -1,0 +1,26 @@
+manifest = { SOI ~ item* ~ horizontal_space ~ EOI }
+
+item = _{ blank_line | entry }
+entry = _{ block | exclude | recursive | children | include }
+
+block = {
+    horizontal_space ~ block_name ~ horizontal_space ~ "{" ~ horizontal_space ~ newline ~
+    item* ~
+    horizontal_space ~ "}" ~ horizontal_space ~ line_ending
+}
+
+exclude = { horizontal_space ~ "!" ~ path ~ horizontal_space ~ line_ending }
+recursive = { horizontal_space ~ "**" ~ horizontal_space ~ line_ending }
+children = { horizontal_space ~ "*" ~ horizontal_space ~ line_ending }
+include = { horizontal_space ~ include_name ~ horizontal_space ~ line_ending }
+
+block_name = @{ !"!" ~ name_character+ }
+include_name = @{ !"!" ~ name_character+ }
+path = @{ &(horizontal_space ~ non_space_name_character) ~ name_character+ }
+name_character = { !("{" | "}" | "\r" | "\n") ~ ANY }
+non_space_name_character = { !(" " | "\t" | "{" | "}" | "\r" | "\n") ~ ANY }
+
+blank_line = _{ horizontal_space ~ newline }
+horizontal_space = _{ (" " | "\t")* }
+newline = _{ "\r\n" | "\n" }
+line_ending = _{ newline | EOI }

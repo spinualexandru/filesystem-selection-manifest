@@ -1,0 +1,8 @@
+name = "Fsman"
+grammar = "embedded_template"
+path_suffixes = ["fsman"]
+tab_size = 2
+hard_tabs = false
+brackets = [
+  { start = "{", end = "}", close = true, newline = true },
+]

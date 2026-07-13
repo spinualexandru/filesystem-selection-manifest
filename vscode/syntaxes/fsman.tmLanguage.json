@@ -1,0 +1,61 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "fsman",
+  "scopeName": "source.fsman",
+  "patterns": [
+    {
+      "match": "^(\\s*)(\\*\\*)(\\s*)$",
+      "captures": {
+        "2": {
+          "name": "keyword.operator.recursive.fsman"
+        }
+      }
+    },
+    {
+      "match": "^(\\s*)(\\*)(\\s*)$",
+      "captures": {
+        "2": {
+          "name": "keyword.operator.children.fsman"
+        }
+      }
+    },
+    {
+      "match": "^(\\s*)(!)(.+?)(\\s*)$",
+      "captures": {
+        "2": {
+          "name": "keyword.operator.exclude.fsman"
+        },
+        "3": {
+          "name": "string.unquoted.path.fsman"
+        }
+      }
+    },
+    {
+      "match": "^(\\s*)(.+?)(\\s*)(\\{)(\\s*)$",
+      "captures": {
+        "2": {
+          "name": "entity.name.section.fsman"
+        },
+        "4": {
+          "name": "punctuation.section.block.begin.fsman"
+        }
+      }
+    },
+    {
+      "match": "^(\\s*)(\\})(\\s*)$",
+      "captures": {
+        "2": {
+          "name": "punctuation.section.block.end.fsman"
+        }
+      }
+    },
+    {
+      "match": "^(\\s*)(.+?)(\\s*)$",
+      "captures": {
+        "2": {
+          "name": "string.unquoted.path.fsman"
+        }
+      }
+    }
+  ]
+}

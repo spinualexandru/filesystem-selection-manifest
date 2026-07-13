@@ -1,0 +1,98 @@
+{
+  "name": "fsman",
+  "displayName": "fsman",
+  "description": "Language support and diagnostics for fsman manifests.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "publisher": "fsman",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "keywords": [
+    "fsman",
+    "manifest",
+    "language-server",
+    "lsp"
+  ],
+  "activationEvents": [
+    "onLanguage:fsman",
+    "onCommand:fsman.restartServer"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "fsman",
+        "aliases": [
+          "fsman",
+          "Fsman"
+        ],
+        "extensions": [
+          ".fsman"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "fsman",
+        "scopeName": "source.fsman",
+        "path": "./syntaxes/fsman.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "fsman.restartServer",
+        "title": "fsman: Restart Language Server"
+      }
+    ],
+    "configuration": {
+      "title": "fsman",
+      "properties": {
+        "fsman.server.path": {
+          "type": "string",
+          "default": "fsman-lsp",
+          "scope": "machine-overridable",
+          "description": "Path to the fsman language server executable. Commands available on PATH are supported."
+        },
+        "fsman.server.arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "machine-overridable",
+          "description": "Arguments passed to the fsman language server."
+        },
+        "fsman.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "scope": "window",
+          "description": "Trace communication between VS Code and the fsman language server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "check": "tsc -p ./ --noEmit",
+    "vscode:prepublish": "npm run compile"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.8.3"
+  }
+}

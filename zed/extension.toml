@@ -1,0 +1,17 @@
+id = "fsman"
+name = "fsman"
+version = "0.1.0"
+schema_version = 1
+authors = ["fsman contributors"]
+description = "Language support and diagnostics for fsman manifests."
+repository = "https://github.com/OWNER/fsman"
+
+# fsman currently has no standalone Tree-sitter grammar. This permissive
+# grammar supplies Zed's required parser while fsman-lsp remains authoritative.
+[grammars.embedded_template]
+repository = "https://github.com/tree-sitter/tree-sitter-embedded-template"
+commit = "3499d85f0a0d937c507a4a65368f2f63772786e1"
+
+[language_servers.fsman-lsp]
+name = "fsman Language Server"
+language = "Fsman"
