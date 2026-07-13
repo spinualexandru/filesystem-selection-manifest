@@ -1,0 +1,297 @@
+name: Publish release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag, for example v0.1.0
+        required: true
+        type: string
+      publish_cargo:
+        description: Publish fsman, fsman-cli, and fsman-lsp to crates.io
+        required: true
+        default: true
+        type: boolean
+      publish_npm:
+        description: Publish fsmanifest and its native packages to npm
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+  RUST_VERSION: "1.85"
+
+jobs:
+  validate:
+    name: Validate release
+    runs-on: ubuntu-24.04
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+
+      - name: Validate the tag
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Expected a semantic version tag such as v0.1.0, got: $RELEASE_TAG" >&2
+            exit 1
+          fi
+
+          git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"
+
+          if [[ "$(git rev-parse HEAD)" != "$(git rev-list -n 1 "$RELEASE_TAG")" ]]; then
+            echo "The checked-out commit does not match $RELEASE_TAG" >&2
+            exit 1
+          fi
+
+          echo "RELEASE_VERSION=${RELEASE_TAG#v}" >> "$GITHUB_ENV"
+
+      - name: Set up Rust
+        shell: bash
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --no-self-update
+          rustup default "$RUST_VERSION"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Check package versions
+        run: node .github/scripts/check-release-version.mjs "$RELEASE_VERSION"
+
+      - name: Test Rust workspace
+        run: cargo test --workspace
+
+      - name: Package Rust crates
+        run: cargo package -p fsman
+
+      - name: Install npm dependencies
+        working-directory: node
+        run: npm install --omit=optional
+
+      - name: Check Neon platform metadata
+        shell: bash
+        run: |
+          npm --prefix node run platforms:update
+          git diff --exit-code -- node/package.json node/platforms node/native.cjs
+
+      - name: Test npm package
+        working-directory: node
+        run: npm test
+
+      - name: Inspect npm package
+        working-directory: node
+        run: npm pack --dry-run
+
+  build-native:
+    name: Build ${{ matrix.platform }}
+    if: ${{ inputs.publish_npm }}
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: darwin-arm64
+            runner: macos-15
+            target: aarch64-apple-darwin
+          - platform: darwin-x64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+          - platform: linux-arm64-gnu
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - platform: linux-x64-gnu
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - platform: win32-x64-msvc
+            runner: windows-2022
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Set up Rust target
+        shell: bash
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --no-self-update
+          rustup default "$RUST_VERSION"
+          rustup target add "${{ matrix.target }}"
+
+      - name: Install npm dependencies
+        working-directory: node
+        run: npm install --omit=optional
+
+      - name: Build and stage native package
+        working-directory: node
+        shell: bash
+        run: |
+          cargo build \
+            --release \
+            --package fsman-node \
+            --target "${{ matrix.target }}" \
+            --message-format=json-render-diagnostics \
+            > cargo-messages.json
+          npm exec -- neon dist \
+            --name fsman-node \
+            --log cargo-messages.json \
+            --platform "${{ matrix.platform }}"
+
+      - name: Upload native package
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-${{ matrix.platform }}
+          path: node/platforms/${{ matrix.platform }}
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-cargo:
+    name: Publish Rust crates
+    if: ${{ inputs.publish_cargo }}
+    needs: validate
+    runs-on: ubuntu-24.04
+    environment: release
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Set up Rust
+        shell: bash
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --no-self-update
+          rustup default "$RUST_VERSION"
+
+      - name: Publish crates in dependency order
+        shell: bash
+        run: |
+          version="${RELEASE_TAG#v}"
+
+          crate_exists() {
+            cargo info "$1@$version" >/dev/null 2>&1
+          }
+
+          publish_crate() {
+            local crate="$1"
+            shift
+            if crate_exists "$crate"; then
+              echo "$crate@$version is already published; skipping."
+            else
+              cargo publish -p "$crate" "$@"
+            fi
+          }
+
+          publish_crate fsman
+
+          for attempt in {1..30}; do
+            if crate_exists fsman; then
+              break
+            fi
+            if [[ "$attempt" == 30 ]]; then
+              echo "fsman@$version did not become available in the crates.io index." >&2
+              exit 1
+            fi
+            echo "Waiting for fsman@$version to reach the crates.io index ($attempt/30)..."
+            sleep 10
+          done
+
+          publish_crate fsman-cli --no-verify
+          publish_crate fsman-lsp --no-verify
+
+  publish-npm:
+    name: Publish npm packages
+    if: ${{ inputs.publish_npm }}
+    needs:
+      - validate
+      - build-native
+    runs-on: ubuntu-24.04
+    environment: release
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Set up Rust
+        shell: bash
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --no-self-update
+          rustup default "$RUST_VERSION"
+
+      - name: Use npm 11
+        run: npm install --global npm@11
+
+      - name: Install npm dependencies
+        working-directory: node
+        run: npm install --omit=optional
+
+      - name: Download native packages
+        uses: actions/download-artifact@v7
+        with:
+          pattern: native-*
+          path: native-packages
+
+      - name: Publish native packages
+        shell: bash
+        run: |
+          publish_package() {
+            local package_directory="$1"
+            local package_spec
+            package_spec="$(node -e "const p = require('./$package_directory/package.json'); process.stdout.write(p.name + '@' + p.version)")"
+            if npm view "$package_spec" version >/dev/null 2>&1; then
+              echo "$package_spec is already published; skipping."
+            else
+              npm publish "$package_directory" --access public --provenance
+            fi
+          }
+
+          for package_directory in native-packages/native-*; do
+            publish_package "$package_directory"
+          done
+
+      - name: Publish fsmanifest
+        shell: bash
+        run: |
+          package_spec="$(node -e "const p = require('./node/package.json'); process.stdout.write(p.name + '@' + p.version)")"
+          if npm view "$package_spec" version >/dev/null 2>&1; then
+            echo "$package_spec is already published; skipping."
+          else
+            npm publish ./node --access public --provenance
+          fi

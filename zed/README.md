@@ -17,10 +17,10 @@ by running `fsman-lsp` over standard input/output.
 
 ## Requirements
 
-Install `fsman-lsp` from the repository and ensure it is on `PATH`:
+Install `fsman-lsp` and ensure it is on `PATH`:
 
 ```sh
-cargo install --path crates/fsman-lsp
+cargo install fsman-lsp
 ```
 
 If Zed cannot find the executable, configure it under `lsp.fsman-lsp.binary` in
@@ -60,5 +60,5 @@ dedicated Tree-sitter grammar, the extension uses a permissive fallback grammar
 to satisfy Zed's language registration requirement; highlighting is therefore
 limited.
 
-Before publishing the extension, replace the placeholder `repository` URL in
-`extension.toml` with this project's canonical GitHub URL.
+The extension metadata points to the canonical project repository and is ready
+for Zed's extension publishing workflow.

@@ -1,4 +1,4 @@
-# `@fsman/node`
+# `fsmanifest`
 
 A promise-based TypeScript API for loading, validating, and resolving fsman
 manifests. A native addon built with Neon calls the Rust `fsman` crate directly,
@@ -9,13 +9,20 @@ process.
 
 - Node.js 20 or newer.
 
-The published package includes its native addon. Building from a repository
+The published package installs a prebuilt native addon for Windows x64, macOS
+x64 or ARM64, and glibc-based Linux x64 or ARM64. Building from a repository
 checkout also requires a current Rust toolchain.
+
+Install it from npm:
+
+```sh
+npm install fsmanifest
+```
 
 ## Usage
 
 ```ts
-import { FSMan } from "@fsman/node";
+import { FSMan } from "fsmanifest";
 
 const config = await FSMan.load("./dots.fsman");
 const isValid = await FSMan.validate();
@@ -52,5 +59,6 @@ npm run check
 npm test
 ```
 
-`npm run build` compiles the Neon addon and TypeScript. `npm pack` builds the
-addon with Cargo's release profile before creating the package tarball.
+`npm run build` compiles a local Neon addon and the TypeScript API. Published
+addons live in platform-specific optional packages; `npm pack` creates the
+portable JavaScript package without embedding the local build.

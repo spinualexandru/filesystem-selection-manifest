@@ -2,13 +2,18 @@
 name = "fsman-node"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Native Node.js bindings for fsman"
 publish = false
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-fsman = { path = "../fsman" }
+fsman = { path = "../fsman", version = "0.1.0" }
 neon.workspace = true
 serde_json.workspace = true

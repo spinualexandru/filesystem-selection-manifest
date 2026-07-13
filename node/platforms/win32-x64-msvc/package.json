@@ -1,0 +1,47 @@
+{
+  "name": "@spinualexandru/fsmanifest-win32-x64-msvc",
+  "description": "Prebuilt binary package for `fsmanifest` on `win32-x64-msvc`.",
+  "version": "0.1.0",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "index.node",
+  "files": [
+    "index.node"
+  ],
+  "neon": {
+    "type": "binary",
+    "rust": "x86_64-pc-windows-msvc",
+    "node": "win32-x64-msvc",
+    "os": "win32",
+    "arch": "x64",
+    "abi": "msvc"
+  },
+  "author": {
+    "name": "Alex Spinu",
+    "email": "spinualexandru@outlook.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/spinualexandru/filesystem-selection-manifest.git",
+    "directory": "node"
+  },
+  "keywords": [
+    "fsman",
+    "filesystem",
+    "manifest",
+    "dotfiles",
+    "typescript"
+  ],
+  "bugs": {
+    "url": "https://github.com/spinualexandru/filesystem-selection-manifest/issues"
+  },
+  "homepage": "https://github.com/spinualexandru/filesystem-selection-manifest#readme",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

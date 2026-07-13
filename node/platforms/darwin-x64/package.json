@@ -1,0 +1,47 @@
+{
+  "name": "@spinualexandru/fsmanifest-darwin-x64",
+  "description": "Prebuilt binary package for `fsmanifest` on `darwin-x64`.",
+  "version": "0.1.0",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "index.node",
+  "files": [
+    "index.node"
+  ],
+  "neon": {
+    "type": "binary",
+    "rust": "x86_64-apple-darwin",
+    "node": "darwin-x64",
+    "os": "darwin",
+    "arch": "x64",
+    "abi": null
+  },
+  "author": {
+    "name": "Alex Spinu",
+    "email": "spinualexandru@outlook.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/spinualexandru/filesystem-selection-manifest.git",
+    "directory": "node"
+  },
+  "keywords": [
+    "fsman",
+    "filesystem",
+    "manifest",
+    "dotfiles",
+    "typescript"
+  ],
+  "bugs": {
+    "url": "https://github.com/spinualexandru/filesystem-selection-manifest/issues"
+  },
+  "homepage": "https://github.com/spinualexandru/filesystem-selection-manifest#readme",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

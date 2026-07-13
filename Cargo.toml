@@ -5,7 +5,14 @@ resolver = "3"
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
+authors = ["Alex Spinu <spinualexandru@outlook.com>"]
 license = "MIT"
+readme = "README.md"
+repository = "https://github.com/spinualexandru/filesystem-selection-manifest"
+homepage = "https://github.com/spinualexandru/filesystem-selection-manifest"
+keywords = ["filesystem", "manifest", "dotfiles", "configuration"]
+categories = ["filesystem", "config"]
 
 [workspace.dependencies]
 ignore = "0.4.28"

@@ -1,0 +1,50 @@
+{
+  "name": "@spinualexandru/fsmanifest-linux-x64-gnu",
+  "description": "Prebuilt binary package for `fsmanifest` on `linux-x64-gnu`.",
+  "version": "0.1.0",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "main": "index.node",
+  "files": [
+    "index.node"
+  ],
+  "neon": {
+    "type": "binary",
+    "rust": "x86_64-unknown-linux-gnu",
+    "node": "linux-x64-gnu",
+    "os": "linux",
+    "arch": "x64",
+    "abi": "gnu"
+  },
+  "author": {
+    "name": "Alex Spinu",
+    "email": "spinualexandru@outlook.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/spinualexandru/filesystem-selection-manifest.git",
+    "directory": "node"
+  },
+  "keywords": [
+    "fsman",
+    "filesystem",
+    "manifest",
+    "dotfiles",
+    "typescript"
+  ],
+  "bugs": {
+    "url": "https://github.com/spinualexandru/filesystem-selection-manifest/issues"
+  },
+  "homepage": "https://github.com/spinualexandru/filesystem-selection-manifest#readme",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

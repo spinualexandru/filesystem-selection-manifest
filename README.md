@@ -84,20 +84,20 @@ The resolver also supports `--depth <LEVELS>` for bounded recursion,
 `--short` for collapsed paths, `--json` for structured output, and `--flat`
 for a path list. Flags can be combined, including `--json --flat`.
 
-To install the binaries from a checkout:
+To install the published binaries from crates.io:
 
 ```sh
-cargo install --path crates/fsman-cli
-cargo install --path crates/fsman-lsp
+cargo install fsman-cli
+cargo install fsman-lsp
 ```
 
 ### Node.js and TypeScript
 
-The [`@fsman/node`](node/README.md) package provides a typed, promise-based API
+The [`fsmanifest`](node/README.md) package provides a typed, promise-based API
 backed by an in-process Neon addon:
 
 ```ts
-import { FSMan } from "@fsman/node";
+import { FSMan } from "fsmanifest";
 
 const config = await FSMan.load("./dots.fsman");
 
@@ -118,6 +118,18 @@ and local development commands.
 
 Both extensions launch `fsman-lsp`, which must be available on `PATH` or
 configured explicitly in the editor.
+
+## Publishing
+
+Publishing is handled by the manually triggered `Publish release` GitHub
+Actions workflow. Create and push a semantic-version tag such as `v0.1.0`, then
+run the workflow for that tag from the Actions tab. The workflow verifies that
+the tag matches all Cargo and npm versions before publishing anything.
+
+The `release` GitHub environment needs `CRATES_IO_TOKEN` and `NPM_TOKEN`
+secrets. The npm account must own the `@spinualexandru` scope used by the native
+binary packages. Cargo and npm publishing can be enabled independently in the
+workflow form.
 
 ## Workspace layout
 

@@ -2,9 +2,9 @@ id = "fsman"
 name = "fsman"
 version = "0.1.0"
 schema_version = 1
-authors = ["fsman contributors"]
+authors = ["Alex Spinu <spinualexandru@outlook.com>"]
 description = "Language support and diagnostics for fsman manifests."
-repository = "https://github.com/OWNER/fsman"
+repository = "https://github.com/spinualexandru/filesystem-selection-manifest"
 
 # fsman currently has no standalone Tree-sitter grammar. This permissive
 # grammar supplies Zed's required parser while fsman-lsp remains authoritative.

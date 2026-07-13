@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../assets/logo.svg" alt="fsman logo" width="128">
+  <img src="../assets/logo.png" alt="fsman logo" width="128">
 </p>
 
 <h1 align="center">fsman for Visual Studio Code</h1>
@@ -18,10 +18,10 @@ parser errors as you type by running `fsman-lsp` over standard input/output.
 
 ## Requirements
 
-Install `fsman-lsp` from the repository and ensure it is on `PATH`:
+Install `fsman-lsp` and ensure it is on `PATH`:
 
 ```sh
-cargo install --path crates/fsman-lsp
+cargo install fsman-lsp
 ```
 
 If VS Code cannot find the executable, set `fsman.server.path` to an absolute
@@ -57,7 +57,8 @@ npm run compile
 
 Open the `vscode` directory in VS Code and run the **Run Extension** launch
 configuration. To build an installable package, run
-`npx @vscode/vsce package` from the same directory.
+`npm run package` from the same directory. After configuring a Visual Studio
+Marketplace publisher token, release it with `npm run publish:marketplace`.
 
 Syntax diagnostics come from `fsman-lsp`; the TextMate grammar is responsible
 only for highlighting.

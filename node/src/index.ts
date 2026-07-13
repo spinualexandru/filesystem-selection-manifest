@@ -53,7 +53,7 @@ interface NativeBinding {
   ): Promise<string>;
 }
 
-const native = createRequire(import.meta.url)("../index.node") as NativeBinding;
+const native = createRequire(import.meta.url)("../native.cjs") as NativeBinding;
 
 /** An error reported by the native fsman binding. */
 export class FSManError extends Error {

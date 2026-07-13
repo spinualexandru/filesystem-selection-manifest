@@ -4,6 +4,12 @@
 name = "zed-fsman"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
+authors = ["Alex Spinu <spinualexandru@outlook.com>"]
+description = "Zed language support for fsman manifests"
+license = "MIT"
+repository = "https://github.com/spinualexandru/filesystem-selection-manifest"
+homepage = "https://github.com/spinualexandru/filesystem-selection-manifest"
 publish = false
 
 [lib]
