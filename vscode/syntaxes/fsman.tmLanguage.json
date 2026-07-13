@@ -4,7 +4,7 @@
   "scopeName": "source.fsman",
   "patterns": [
     {
-      "match": "^(\\s*)(\\*\\*)(\\s*)$",
+      "match": "^(\\s*)(\\*\\*\\*?)(\\s*)$",
       "captures": {
         "2": {
           "name": "keyword.operator.recursive.fsman"

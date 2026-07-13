@@ -1,2 +1,5 @@
 /target
 **/vsix
+node/dist
+node/index.node
+node/node_modules

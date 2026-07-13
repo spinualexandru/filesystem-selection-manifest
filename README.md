@@ -31,6 +31,13 @@ resolver CLI, an LSP server, and editor extensions for VS Code and Zed.
   }
 }
 
+Work {
+  **
+  assets {
+    ***
+  }
+}
+
 .hidden
 ```
 
@@ -41,12 +48,15 @@ Each directive occupies its own line:
 | `path` | Select an exact file or directory. |
 | `path { ... }` | Descend into a directory and apply nested directives. |
 | `*` | Select every immediate child of the current directory. |
-| `**` | Select the current directory's contents recursively. |
+| `**` | Select recursively, respecting `.gitignore` files and global Git ignores inside repositories. |
+| `***` | Select recursively without applying Git ignore rules. |
 | `!path` | Exclude a path and everything below it. |
 
 Paths are relative to the current block. Absolute paths and parent traversal
 with `..` are rejected during resolution. Missing literal paths are ignored,
-and symbolic links are selected without being followed.
+and symbolic links are selected without being followed. Git-aware recursion
+also skips repository `.git` metadata. Both recursive forms honor
+`--depth <LEVELS>`.
 
 See [`examples/basic.fsman`](examples/basic.fsman) for a larger example.
 
@@ -81,6 +91,24 @@ cargo install --path crates/fsman-cli
 cargo install --path crates/fsman-lsp
 ```
 
+### Node.js and TypeScript
+
+The [`@fsman/node`](node/README.md) package provides a typed, promise-based API
+backed by an in-process Neon addon:
+
+```ts
+import { FSMan } from "@fsman/node";
+
+const config = await FSMan.load("./dots.fsman");
+
+if (await FSMan.validate()) {
+  const paths = await FSMan.resolve(config, { short: true, flat: true });
+}
+```
+
+The package requires Node.js 20 or newer. See its README for resolution options
+and local development commands.
+
 ## Editor support
 
 - [Visual Studio Code](vscode/README.md) provides syntax highlighting and live
@@ -96,6 +124,8 @@ configured explicitly in the editor.
 - `crates/fsman` — typed manifest model, Pest parser, and filesystem resolver.
 - `crates/fsman-cli` — command-line validation and resolution.
 - `crates/fsman-lsp` — stdio language server for syntax diagnostics.
+- `crates/fsman-node` — Neon bindings for the Node package.
+- `node` — TypeScript API for loading, validation, and resolution.
 - `vscode` and `zed` — editor integrations.
 - `examples` — representative manifests.
 

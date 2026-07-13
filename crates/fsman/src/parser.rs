@@ -21,6 +21,7 @@ pub enum Entry {
     Exclude { path: String },
     IncludeChildren,
     IncludeRecursive,
+    IncludeRecursiveAll,
     Descend { path: String, entries: Vec<Entry> },
 }
 
@@ -104,6 +105,7 @@ fn parse_entry(pair: Pair<'_, Rule>) -> Entry {
         },
         Rule::children => Entry::IncludeChildren,
         Rule::recursive => Entry::IncludeRecursive,
+        Rule::recursive_all => Entry::IncludeRecursiveAll,
         Rule::block => {
             let mut inner = pair.into_inner();
             let path = inner
@@ -192,6 +194,22 @@ mod tests {
                             },
                         ],
                     },
+                    Entry::Descend {
+                        path: "Work".into(),
+                        entries: vec![
+                            Entry::IncludeRecursive,
+                            Entry::Descend {
+                                path: "assets".into(),
+                                entries: vec![Entry::IncludeRecursiveAll],
+                            },
+                        ],
+                    },
+                    Entry::Include {
+                        path: ".vimrc".into(),
+                    },
+                    Entry::Include {
+                        path: ".bashrc".into(),
+                    },
                     Entry::Include {
                         path: ".hidden".into(),
                     },
@@ -202,9 +220,10 @@ mod tests {
 
     #[test]
     fn parses_all_directives_and_names_with_spaces() {
-        let manifest =
-            parse_manifest("plain file\n!excluded path\n*\n**\nfolder name {\n  nested file\n}\n")
-                .unwrap();
+        let manifest = parse_manifest(
+            "plain file\n!excluded path\n*\n**\n***\nfolder name {\n  nested file\n}\n",
+        )
+        .unwrap();
 
         assert_eq!(
             manifest.entries,
@@ -217,6 +236,7 @@ mod tests {
                 },
                 Entry::IncludeChildren,
                 Entry::IncludeRecursive,
+                Entry::IncludeRecursiveAll,
                 Entry::Descend {
                     path: "folder name".into(),
                     entries: vec![Entry::Include {

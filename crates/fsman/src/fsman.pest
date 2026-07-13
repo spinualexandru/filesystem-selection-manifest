@@ -1,7 +1,7 @@
 manifest = { SOI ~ item* ~ horizontal_space ~ EOI }
 
 item = _{ blank_line | entry }
-entry = _{ block | exclude | recursive | children | include }
+entry = _{ block | exclude | recursive_all | recursive | children | include }
 
 block = {
     horizontal_space ~ block_name ~ horizontal_space ~ "{" ~ horizontal_space ~ newline ~
@@ -10,6 +10,7 @@ block = {
 }
 
 exclude = { horizontal_space ~ "!" ~ path ~ horizontal_space ~ line_ending }
+recursive_all = { horizontal_space ~ "***" ~ horizontal_space ~ line_ending }
 recursive = { horizontal_space ~ "**" ~ horizontal_space ~ line_ending }
 children = { horizontal_space ~ "*" ~ horizontal_space ~ line_ending }
 include = { horizontal_space ~ include_name ~ horizontal_space ~ line_ending }

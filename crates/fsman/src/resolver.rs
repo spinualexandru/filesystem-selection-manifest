@@ -6,6 +6,8 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+use ignore::WalkBuilder;
+
 use crate::{Entry, Manifest};
 
 /// The result of resolving a manifest against a directory.
@@ -40,9 +42,21 @@ pub enum ResolvedEntryKind {
 /// An error encountered while resolving a manifest against the filesystem.
 #[derive(Debug)]
 pub enum ResolveError {
-    InvalidManifestPath { path: String },
-    ReadDirectory { path: PathBuf, source: io::Error },
-    ReadMetadata { path: PathBuf, source: io::Error },
+    InvalidManifestPath {
+        path: String,
+    },
+    ReadDirectory {
+        path: PathBuf,
+        source: io::Error,
+    },
+    ReadMetadata {
+        path: PathBuf,
+        source: io::Error,
+    },
+    WalkDirectory {
+        path: PathBuf,
+        source: ignore::Error,
+    },
 }
 
 impl fmt::Display for ResolveError {
@@ -62,6 +76,9 @@ impl fmt::Display for ResolveError {
             Self::ReadMetadata { path, source } => {
                 write!(formatter, "could not inspect {}: {source}", path.display())
             }
+            Self::WalkDirectory { path, source } => {
+                write!(formatter, "could not walk {}: {source}", path.display())
+            }
         }
     }
 }
@@ -71,6 +88,7 @@ impl Error for ResolveError {
         match self {
             Self::InvalidManifestPath { .. } => None,
             Self::ReadDirectory { source, .. } | Self::ReadMetadata { source, .. } => Some(source),
+            Self::WalkDirectory { source, .. } => Some(source),
         }
     }
 }
@@ -78,8 +96,9 @@ impl Error for ResolveError {
 /// Resolve a parsed manifest against `root`.
 ///
 /// Literal paths that do not exist are omitted. `recursive_depth` limits how
-/// many levels each `**` directive traverses; `None` permits unlimited
-/// traversal. Symbolic links are selected but are never followed.
+/// many levels each `**` or `***` directive traverses; `None` permits
+/// unlimited traversal. `**` respects Git ignore rules, while `***` includes
+/// ignored paths. Symbolic links are selected but are never followed.
 pub fn resolve_manifest(
     manifest: &Manifest,
     root: impl AsRef<Path>,
@@ -127,6 +146,15 @@ fn resolve_entries(
             }
             Entry::IncludeRecursive => {
                 if recursive_depth != Some(0) {
+                    for (name, entry) in
+                        resolve_recursive_git_aware(directory, recursive_depth, &exclusions)?
+                    {
+                        merge_entry(&mut resolved, name, entry);
+                    }
+                }
+            }
+            Entry::IncludeRecursiveAll => {
+                if recursive_depth != Some(0) {
                     for (name, entry) in resolve_recursive(
                         directory,
                         Path::new(""),
@@ -161,6 +189,143 @@ fn resolve_entries(
     }
 
     Ok(resolved)
+}
+
+fn resolve_recursive_git_aware(
+    directory: &Path,
+    max_depth: Option<usize>,
+    exclusions: &[PathBuf],
+) -> Result<BTreeMap<OsString, ResolvedEntry>, ResolveError> {
+    if let Some(ignore_root) = find_git_ignore_root(directory) {
+        return resolve_recursive_with_git_ignores(
+            directory,
+            &ignore_root,
+            Path::new(""),
+            max_depth,
+            exclusions,
+        );
+    }
+
+    resolve_recursive_outside_git_repository(directory, Path::new(""), 1, max_depth, exclusions)
+}
+
+fn resolve_recursive_outside_git_repository(
+    directory: &Path,
+    relative_directory: &Path,
+    level: usize,
+    max_depth: Option<usize>,
+    exclusions: &[PathBuf],
+) -> Result<BTreeMap<OsString, ResolvedEntry>, ResolveError> {
+    let mut resolved = BTreeMap::new();
+
+    for (name, mut entry) in read_children(directory)? {
+        let relative = relative_directory.join(&name);
+        if is_excluded(&relative, exclusions) {
+            continue;
+        }
+
+        if entry.kind == ResolvedEntryKind::Directory && max_depth.is_none_or(|depth| level < depth)
+        {
+            entry.children = if is_git_ignore_root(&entry.path) {
+                let remaining_depth = max_depth.map(|depth| depth - level);
+                resolve_recursive_with_git_ignores(
+                    &entry.path,
+                    &entry.path,
+                    &relative,
+                    remaining_depth,
+                    exclusions,
+                )?
+                .into_values()
+                .collect()
+            } else {
+                resolve_recursive_outside_git_repository(
+                    &entry.path,
+                    &relative,
+                    level + 1,
+                    max_depth,
+                    exclusions,
+                )?
+                .into_values()
+                .collect()
+            };
+        }
+        resolved.insert(name, entry);
+    }
+
+    Ok(resolved)
+}
+
+fn resolve_recursive_with_git_ignores(
+    directory: &Path,
+    ignore_root: &Path,
+    relative_prefix: &Path,
+    max_depth: Option<usize>,
+    exclusions: &[PathBuf],
+) -> Result<BTreeMap<OsString, ResolvedEntry>, ResolveError> {
+    let is_repository = is_git_repository_root(ignore_root);
+    let filter_root = directory.to_path_buf();
+    let filter_prefix = relative_prefix.to_path_buf();
+    let filter_exclusions = exclusions.to_vec();
+    let mut walker = WalkBuilder::new(directory);
+    walker
+        .standard_filters(false)
+        .parents(true)
+        .git_ignore(true)
+        .git_global(is_repository)
+        .git_exclude(is_repository)
+        .require_git(is_repository)
+        .follow_links(false)
+        .max_depth(max_depth)
+        .current_dir(ignore_root)
+        .sort_by_file_name(OsStr::cmp)
+        .filter_entry(move |entry| {
+            let relative = entry
+                .path()
+                .strip_prefix(&filter_root)
+                .unwrap_or(entry.path());
+            let manifest_relative = filter_prefix.join(relative);
+            relative.as_os_str().is_empty()
+                || (entry.file_name() != OsStr::new(".git")
+                    && !is_excluded(&manifest_relative, &filter_exclusions))
+        });
+
+    let mut resolved = BTreeMap::new();
+    for result in walker.build() {
+        let entry = result.map_err(|source| ResolveError::WalkDirectory {
+            path: directory.to_path_buf(),
+            source,
+        })?;
+        if let Some(source) = entry.error() {
+            return Err(ResolveError::WalkDirectory {
+                path: entry.path().to_path_buf(),
+                source: source.clone(),
+            });
+        }
+        let relative = entry
+            .path()
+            .strip_prefix(directory)
+            .expect("walked entries are always below the recursive root");
+        if relative.as_os_str().is_empty() {
+            continue;
+        }
+        insert_literal(&mut resolved, directory, relative, None)?;
+    }
+    Ok(resolved)
+}
+
+fn find_git_ignore_root(directory: &Path) -> Option<PathBuf> {
+    directory
+        .ancestors()
+        .find(|ancestor| is_git_ignore_root(ancestor))
+        .map(Path::to_path_buf)
+}
+
+fn is_git_ignore_root(directory: &Path) -> bool {
+    is_git_repository_root(directory) || directory.join(".gitignore").is_file()
+}
+
+fn is_git_repository_root(directory: &Path) -> bool {
+    directory.join(".git").exists()
 }
 
 fn resolve_recursive(
@@ -394,6 +559,10 @@ mod tests {
             }
             fs::write(path, "test").unwrap();
         }
+
+        fn create_directory(&self, relative: &str) {
+            fs::create_dir_all(self.0.join(relative)).unwrap();
+        }
     }
 
     impl Drop for TestDirectory {
@@ -438,7 +607,7 @@ mod tests {
     fn limits_each_recursive_directive_to_the_requested_depth() {
         let directory = TestDirectory::new();
         directory.create_file("one/two/three/file.txt");
-        let manifest = parse_manifest("**\n").unwrap();
+        let manifest = parse_manifest("***\n").unwrap();
 
         let tree = resolve_manifest(&manifest, &directory.0, Some(2)).unwrap();
 
@@ -452,7 +621,7 @@ mod tests {
     fn unlimited_recursion_visits_all_descendants() {
         let directory = TestDirectory::new();
         directory.create_file("one/two/three/file.txt");
-        let manifest = parse_manifest("**\n").unwrap();
+        let manifest = parse_manifest("***\n").unwrap();
 
         let tree = resolve_manifest(&manifest, &directory.0, None).unwrap();
 
@@ -462,6 +631,56 @@ mod tests {
                 .map(PathBuf::from)
                 .to_vec()
         );
+    }
+
+    #[test]
+    fn git_aware_recursion_applies_gitignore_with_or_without_repository_metadata() {
+        let directory = TestDirectory::new();
+        directory.create_file("outside/.gitignore");
+        fs::write(
+            directory.0.join("outside/.gitignore"),
+            "ignored.txt\nnode_modules\n",
+        )
+        .unwrap();
+        directory.create_file("outside/ignored.txt");
+        directory.create_file("outside/node_modules/package/index.js");
+        directory.create_directory("repo/.git");
+        directory.create_file("repo/.gitignore");
+        fs::write(directory.0.join("repo/.gitignore"), "ignored.txt\n").unwrap();
+        directory.create_file("repo/ignored.txt");
+        directory.create_file("repo/keep.txt");
+        let manifest = parse_manifest("**\n").unwrap();
+
+        let tree = resolve_manifest(&manifest, &directory.0, None).unwrap();
+
+        assert_eq!(
+            relative_paths(&tree),
+            [
+                "outside",
+                "outside/.gitignore",
+                "repo",
+                "repo/.gitignore",
+                "repo/keep.txt",
+            ]
+            .map(PathBuf::from)
+            .to_vec()
+        );
+    }
+
+    #[test]
+    fn unfiltered_recursion_keeps_git_ignored_paths() {
+        let directory = TestDirectory::new();
+        directory.create_directory("repo/.git");
+        directory.create_file("repo/.gitignore");
+        fs::write(directory.0.join("repo/.gitignore"), "ignored.txt\n").unwrap();
+        directory.create_file("repo/ignored.txt");
+        let manifest = parse_manifest("***\n").unwrap();
+
+        let tree = resolve_manifest(&manifest, &directory.0, None).unwrap();
+        let paths = relative_paths(&tree);
+
+        assert!(paths.contains(&PathBuf::from("repo/.git")));
+        assert!(paths.contains(&PathBuf::from("repo/ignored.txt")));
     }
 
     #[test]

@@ -1,5 +1,4 @@
 use std::{
-    collections::BTreeSet,
     env,
     error::Error,
     ffi::{OsStr, OsString},
@@ -182,10 +181,10 @@ fn print_short_tree(
     recursive_depth: Option<usize>,
 ) {
     print_short_root(&tree.root);
-    let (root_collapsed, paths) = short_paths(tree, manifest, recursive_depth);
-    if root_collapsed {
-        return;
-    }
+    let paths = fsman::output_paths(tree, manifest, recursive_depth, true)
+        .into_iter()
+        .filter(|entry| entry.path != tree.root)
+        .collect::<Vec<_>>();
     for (index, entry) in paths.iter().enumerate() {
         let connector = if index + 1 == paths.len() {
             "└── "
@@ -197,7 +196,11 @@ fn print_short_tree(
         } else {
             ""
         };
-        println!("{connector}{}{suffix}", entry.path.display());
+        let relative = entry
+            .path
+            .strip_prefix(&tree.root)
+            .expect("output paths are always below the resolution root");
+        println!("{connector}{}{suffix}", relative.display());
     }
 }
 
@@ -210,187 +213,13 @@ fn print_short_root(root: &Path) {
     }
 }
 
-fn collect_recursive_directories(
-    entries: &[fsman::Entry],
-    directory: &Path,
-    recursive_depth: Option<usize>,
-    collapsed: &mut BTreeSet<PathBuf>,
-    expanded: &mut BTreeSet<PathBuf>,
-) {
-    let selects_recursively = entries
-        .iter()
-        .any(|entry| matches!(entry, fsman::Entry::IncludeRecursive));
-    let has_exclusions = entries
-        .iter()
-        .any(|entry| matches!(entry, fsman::Entry::Exclude { .. }));
-    if selects_recursively {
-        if recursive_depth.is_none() && !has_exclusions {
-            collapsed.insert(directory.to_path_buf());
-        } else {
-            expanded.insert(directory.to_path_buf());
-        }
-        return;
-    }
-
-    for entry in entries {
-        if let fsman::Entry::Descend { path, entries } = entry {
-            collect_recursive_directories(
-                entries,
-                &directory.join(path),
-                recursive_depth,
-                collapsed,
-                expanded,
-            );
-        }
-    }
-}
-
-struct ShortPath {
-    path: PathBuf,
-    kind: fsman::ResolvedEntryKind,
-}
-
-fn short_paths(
-    tree: &fsman::ResolvedTree,
-    manifest: &fsman::Manifest,
-    recursive_depth: Option<usize>,
-) -> (bool, Vec<ShortPath>) {
-    let mut collapsed_directories = BTreeSet::new();
-    let mut expanded_directories = BTreeSet::new();
-    collect_recursive_directories(
-        &manifest.entries,
-        Path::new(""),
-        recursive_depth,
-        &mut collapsed_directories,
-        &mut expanded_directories,
-    );
-    if collapsed_directories.contains(Path::new("")) {
-        return (true, Vec::new());
-    }
-
-    let mut paths = Vec::new();
-    if expanded_directories.contains(Path::new("")) {
-        collect_immediate_paths(&tree.root, &tree.entries, &mut paths);
-    } else {
-        collect_short_paths(
-            &tree.root,
-            &tree.entries,
-            &collapsed_directories,
-            &expanded_directories,
-            &mut paths,
-        );
-    }
-    (false, paths)
-}
-
-fn collect_short_paths(
-    root: &Path,
-    entries: &[fsman::ResolvedEntry],
-    collapsed_directories: &BTreeSet<PathBuf>,
-    expanded_directories: &BTreeSet<PathBuf>,
-    paths: &mut Vec<ShortPath>,
-) {
-    for entry in entries {
-        let relative = entry
-            .path
-            .strip_prefix(root)
-            .expect("resolved entries are always below the resolution root");
-        if expanded_directories.contains(relative) {
-            if entry.children.is_empty() {
-                paths.push(ShortPath {
-                    path: relative.to_path_buf(),
-                    kind: entry.kind,
-                });
-            } else {
-                collect_immediate_paths(root, &entry.children, paths);
-            }
-        } else if entry.children.is_empty() || collapsed_directories.contains(relative) {
-            paths.push(ShortPath {
-                path: relative.to_path_buf(),
-                kind: entry.kind,
-            });
-        } else {
-            collect_short_paths(
-                root,
-                &entry.children,
-                collapsed_directories,
-                expanded_directories,
-                paths,
-            );
-        }
-    }
-}
-
-fn collect_immediate_paths(
-    root: &Path,
-    entries: &[fsman::ResolvedEntry],
-    paths: &mut Vec<ShortPath>,
-) {
-    paths.extend(entries.iter().map(|entry| {
-        ShortPath {
-            path: entry
-                .path
-                .strip_prefix(root)
-                .expect("resolved entries are always below the resolution root")
-                .to_path_buf(),
-            kind: entry.kind,
-        }
-    }));
-}
-
-struct OutputPath {
-    path: PathBuf,
-    kind: fsman::ResolvedEntryKind,
-}
-
-fn output_paths(
-    tree: &fsman::ResolvedTree,
-    manifest: &fsman::Manifest,
-    recursive_depth: Option<usize>,
-    short: bool,
-) -> Vec<OutputPath> {
-    if short {
-        let (root_collapsed, paths) = short_paths(tree, manifest, recursive_depth);
-        if root_collapsed {
-            return vec![OutputPath {
-                path: tree.root.clone(),
-                kind: fsman::ResolvedEntryKind::Directory,
-            }];
-        }
-        paths
-            .into_iter()
-            .map(|entry| OutputPath {
-                path: tree.root.join(entry.path),
-                kind: entry.kind,
-            })
-            .collect()
-    } else {
-        let mut paths = Vec::new();
-        collect_terminal_paths(&tree.entries, &mut paths);
-        paths
-    }
-}
-
-fn collect_terminal_paths(entries: &[fsman::ResolvedEntry], paths: &mut Vec<OutputPath>) {
-    for entry in entries {
-        if entry.children.is_empty() {
-            paths.push(OutputPath {
-                path: entry.path.clone(),
-                kind: entry.kind,
-            });
-        } else {
-            collect_terminal_paths(&entry.children, paths);
-        }
-    }
-}
-
 fn print_flat(
     tree: &fsman::ResolvedTree,
     manifest: &fsman::Manifest,
     recursive_depth: Option<usize>,
     short: bool,
 ) {
-    for entry in output_paths(tree, manifest, recursive_depth, short) {
+    for entry in fsman::output_paths(tree, manifest, recursive_depth, short) {
         println!("{}", formatted_output_path(&entry));
     }
 }
@@ -401,7 +230,7 @@ fn print_flat_json(
     recursive_depth: Option<usize>,
     short: bool,
 ) {
-    let paths = output_paths(tree, manifest, recursive_depth, short)
+    let paths = fsman::output_paths(tree, manifest, recursive_depth, short)
         .iter()
         .map(formatted_output_path)
         .collect::<Vec<_>>();
@@ -411,7 +240,7 @@ fn print_flat_json(
     );
 }
 
-fn formatted_output_path(entry: &OutputPath) -> String {
+fn formatted_output_path(entry: &fsman::OutputPath) -> String {
     let mut path = entry.path.display().to_string();
     if entry.kind == fsman::ResolvedEntryKind::Directory
         && !path.ends_with(std::path::MAIN_SEPARATOR)
@@ -428,7 +257,7 @@ fn print_json(
     short: bool,
 ) {
     let value = if short {
-        let paths = output_paths(tree, manifest, recursive_depth, true);
+        let paths = fsman::output_paths(tree, manifest, recursive_depth, true);
         serde_json::json!({
             "path": tree.root.to_string_lossy(),
             "type": "directory",

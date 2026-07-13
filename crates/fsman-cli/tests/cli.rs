@@ -137,7 +137,7 @@ fn short_output_collapses_a_complete_recursive_selection() {
     directory.create_file(".config/hypr/hyprland.conf");
     directory.create_file(".config/hypr/nested/rules.conf");
     let manifest = directory.0.join("selection.fsman");
-    fs::write(&manifest, ".config {\n  hypr {\n    **\n  }\n}\n").unwrap();
+    fs::write(&manifest, ".config {\n  hypr {\n    ***\n  }\n}\n").unwrap();
 
     let output = fsman_cli()
         .args(["resolve", manifest.to_str().unwrap(), "--short", "--cwd"])
@@ -161,7 +161,7 @@ fn short_output_lists_immediate_paths_when_recursion_has_an_exclusion() {
     let manifest = directory.0.join("selection.fsman");
     fs::write(
         &manifest,
-        ".config {\n  hypr {\n    **\n    !AGENTS.md\n  }\n}\n",
+        ".config {\n  hypr {\n    ***\n    !AGENTS.md\n  }\n}\n",
     )
     .unwrap();
 
@@ -187,7 +187,7 @@ fn short_output_keeps_a_depth_limited_selection_expanded() {
     let directory = TestDirectory::new();
     directory.create_file(".config/hypr/one/two/rules.conf");
     let manifest = directory.0.join("selection.fsman");
-    fs::write(&manifest, ".config {\n  hypr {\n    **\n  }\n}\n").unwrap();
+    fs::write(&manifest, ".config {\n  hypr {\n    ***\n  }\n}\n").unwrap();
 
     let output = fsman_cli()
         .args([
@@ -218,7 +218,7 @@ fn flat_output_prints_compact_absolute_paths_without_tree_glyphs() {
     let manifest = directory.0.join("selection.fsman");
     fs::write(
         &manifest,
-        ".config {\n  hypr {\n    **\n    !AGENTS.md\n  }\n}\n",
+        ".config {\n  hypr {\n    ***\n    !AGENTS.md\n  }\n}\n",
     )
     .unwrap();
 
@@ -273,7 +273,7 @@ fn json_flat_output_is_an_array_of_compact_paths() {
     directory.create_file("folder/nested/file.txt");
     directory.create_file("folder/skip.txt");
     let manifest = directory.0.join("selection.fsman");
-    fs::write(&manifest, "folder {\n  **\n  !skip.txt\n}\n").unwrap();
+    fs::write(&manifest, "folder {\n  ***\n  !skip.txt\n}\n").unwrap();
 
     let output = fsman_cli()
         .args([
@@ -296,4 +296,37 @@ fn json_flat_output_is_an_array_of_compact_paths() {
             format!("{}/", directory.0.join("folder/nested").display()),
         ]
     );
+}
+
+#[test]
+fn git_aware_recursion_respects_local_and_global_git_ignores() {
+    let directory = TestDirectory::new();
+    let workspace = directory.0.join("workspace");
+    let home = directory.0.join("home");
+    fs::create_dir_all(workspace.join(".git")).unwrap();
+    fs::create_dir_all(home.join(".config/git")).unwrap();
+    fs::write(workspace.join(".gitignore"), "local.txt\n").unwrap();
+    fs::write(home.join(".config/git/ignore"), "global.txt\n").unwrap();
+    fs::write(workspace.join("local.txt"), "test").unwrap();
+    fs::write(workspace.join("global.txt"), "test").unwrap();
+    fs::write(workspace.join("keep.txt"), "test").unwrap();
+    let manifest = directory.0.join("selection.fsman");
+    fs::write(&manifest, "**\n").unwrap();
+
+    let output = fsman_cli()
+        .args(["resolve", manifest.to_str().unwrap(), "--flat", "--cwd"])
+        .arg(&workspace)
+        .env("HOME", &home)
+        .env_remove("XDG_CONFIG_HOME")
+        .env_remove("GIT_CONFIG_GLOBAL")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("keep.txt"));
+    assert!(stdout.contains(".gitignore"));
+    assert!(!stdout.contains("local.txt"));
+    assert!(!stdout.contains("global.txt"));
+    assert!(!stdout.contains("/.git/"));
 }

@@ -1,0 +1,44 @@
+{
+  "name": "@fsman/node",
+  "version": "0.1.0",
+  "description": "TypeScript API for loading, validating, and resolving fsman manifests",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/index.d.ts",
+    "dist/index.js",
+    "index.node",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build:native && npm run build:typescript",
+    "build:native": "cargo-cp-artifact -ac fsman-node index.node -- cargo build -p fsman-node --message-format=json-render-diagnostics",
+    "build:native:release": "cargo-cp-artifact -ac fsman-node index.node -- cargo build --release -p fsman-node --message-format=json-render-diagnostics",
+    "build:typescript": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build:native:release && npm run build:typescript",
+    "test": "npm run build && node dist/index.test.js"
+  },
+  "keywords": [
+    "fsman",
+    "filesystem",
+    "manifest",
+    "typescript"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "cargo-cp-artifact": "^0.1.9",
+    "typescript": "^5.8.3"
+  }
+}

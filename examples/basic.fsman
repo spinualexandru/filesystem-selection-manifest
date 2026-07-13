@@ -32,4 +32,14 @@
   }
 }
 
+Work {
+  **
+
+  assets {
+    ***
+  }
+}
+
+.vimrc
+.bashrc
 .hidden
