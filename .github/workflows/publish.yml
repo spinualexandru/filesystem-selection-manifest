@@ -195,7 +195,7 @@ jobs:
           version="${RELEASE_TAG#v}"
 
           crate_exists() {
-            cargo info "$1@$version" >/dev/null 2>&1
+            cargo info --registry crates-io "$1@$version" >/dev/null 2>&1
           }
 
           publish_crate() {
