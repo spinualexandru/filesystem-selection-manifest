@@ -126,10 +126,12 @@ Actions workflow. Create and push a semantic-version tag such as `v0.1.0`, then
 run the workflow for that tag from the Actions tab. The workflow verifies that
 the tag matches all Cargo and npm versions before publishing anything.
 
-The `release` GitHub environment needs `CRATES_IO_TOKEN` and `NPM_TOKEN`
-secrets. The npm account must own the `@spinualexandru` scope used by the native
-binary packages. Cargo and npm publishing can be enabled independently in the
-workflow form.
+The `release` GitHub environment needs a `CRATES_IO_TOKEN` secret. npm packages
+use OIDC trusted publishing configured for `publish.yml` and the `release`
+environment, so no npm token is stored in GitHub. Configure that trusted
+publisher on `fsmanifest` and on each `@spinualexandru/fsmanifest-*` native
+package. The npm account must own the `@spinualexandru` scope. Cargo and npm
+publishing can be enabled independently in the workflow form.
 
 ## Workspace layout
 

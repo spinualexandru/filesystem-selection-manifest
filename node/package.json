@@ -10,7 +10,7 @@
   "homepage": "https://github.com/spinualexandru/filesystem-selection-manifest#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/spinualexandru/filesystem-selection-manifest.git",
+    "url": "https://github.com/spinualexandru/filesystem-selection-manifest.git",
     "directory": "node"
   },
   "bugs": {
