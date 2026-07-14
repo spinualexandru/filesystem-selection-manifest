@@ -129,8 +129,8 @@ the tag matches all Cargo and npm versions before publishing anything.
 The `release` GitHub environment needs a `CRATES_IO_TOKEN` secret. npm packages
 use OIDC trusted publishing configured for `publish.yml` and the `release`
 environment, so no npm token is stored in GitHub. Configure that trusted
-publisher on `fsmanifest` and on each `@spinualexandru/fsmanifest-*` native
-package. The npm account must own the `@spinualexandru` scope. Cargo and npm
+publisher on `fsmanifest` and on each `@okei/fsmanifest-*` native package. The
+npm account must own the `@okei` scope. Cargo and npm
 publishing can be enabled independently in the workflow form.
 
 ## Workspace layout

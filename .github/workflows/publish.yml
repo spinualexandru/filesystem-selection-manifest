@@ -82,7 +82,7 @@ jobs:
 
       - name: Install npm dependencies
         working-directory: node
-        run: npm install --omit=optional
+        run: npm install
 
       - name: Check Neon platform metadata
         shell: bash
@@ -143,7 +143,7 @@ jobs:
 
       - name: Install npm dependencies
         working-directory: node
-        run: npm install --omit=optional
+        run: npm install
 
       - name: Build and stage native package
         working-directory: node
@@ -260,7 +260,7 @@ jobs:
 
       - name: Install npm dependencies
         working-directory: node
-        run: npm install --omit=optional
+        run: npm install
 
       - name: Download native packages
         uses: actions/download-artifact@v7

@@ -84,7 +84,7 @@ dependencies = [
 
 [[package]]
 name = "fsman"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ignore",
  "pest",
@@ -93,7 +93,7 @@ dependencies = [
 
 [[package]]
 name = "fsman-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fsman",
  "serde_json",
@@ -101,7 +101,7 @@ dependencies = [
 
 [[package]]
 name = "fsman-lsp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fsman",
  "lsp-server",
@@ -111,7 +111,7 @@ dependencies = [
 
 [[package]]
 name = "fsman-node"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fsman",
  "neon",
@@ -495,6 +495,6 @@ dependencies = [
 
 [[package]]
 name = "zmij"
-version = "1.0.22"
+version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd2f034a4bebf216c9e4b7083603e024cf930873fd67830cfb083c9fa33129d9"
+checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"

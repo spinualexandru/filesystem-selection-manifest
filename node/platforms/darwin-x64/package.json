@@ -1,7 +1,7 @@
 {
-  "name": "@spinualexandru/fsmanifest-darwin-x64",
+  "name": "@okei/fsmanifest-darwin-x64",
   "description": "Prebuilt binary package for `fsmanifest` on `darwin-x64`.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "os": [
     "darwin"
   ],
@@ -26,7 +26,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/spinualexandru/filesystem-selection-manifest.git",
+    "url": "git+https://github.com/spinualexandru/filesystem-selection-manifest.git",
     "directory": "node"
   },
   "keywords": [

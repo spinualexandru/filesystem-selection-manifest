@@ -3,7 +3,7 @@ members = ["crates/fsman", "crates/fsman-cli", "crates/fsman-lsp", "crates/fsman
 resolver = "3"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.85"
 authors = ["Alex Spinu <spinualexandru@outlook.com>"]

@@ -13,5 +13,5 @@ categories.workspace = true
 description = "Validate and resolve fsman filesystem selection manifests"
 
 [dependencies]
-fsman = { path = "../fsman", version = "0.1.0" }
+fsman = { path = "../fsman", version = "0.1.1" }
 serde_json.workspace = true

@@ -9,11 +9,11 @@ if (existsSync(localBuild)) {
   module.exports = require(localBuild);
 } else {
   const packages = {
-    'darwin-arm64': '@spinualexandru/fsmanifest-darwin-arm64',
-    'darwin-x64': '@spinualexandru/fsmanifest-darwin-x64',
-    'linux-arm64-gnu': '@spinualexandru/fsmanifest-linux-arm64-gnu',
-    'linux-x64-gnu': '@spinualexandru/fsmanifest-linux-x64-gnu',
-    'win32-x64-msvc': '@spinualexandru/fsmanifest-win32-x64-msvc',
+    'darwin-arm64': '@okei/fsmanifest-darwin-arm64',
+    'darwin-x64': '@okei/fsmanifest-darwin-x64',
+    'linux-arm64-gnu': '@okei/fsmanifest-linux-arm64-gnu',
+    'linux-x64-gnu': '@okei/fsmanifest-linux-x64-gnu',
+    'win32-x64-msvc': '@okei/fsmanifest-win32-x64-msvc',
   };
   const platform = currentPlatform();
   const packageName = packages[platform];

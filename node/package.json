@@ -1,6 +1,6 @@
 {
   "name": "fsmanifest",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TypeScript API for loading, validating, and resolving fsman manifests",
   "author": {
     "name": "Alex Spinu",
@@ -10,7 +10,7 @@
   "homepage": "https://github.com/spinualexandru/filesystem-selection-manifest#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/spinualexandru/filesystem-selection-manifest.git",
+    "url": "git+https://github.com/spinualexandru/filesystem-selection-manifest.git",
     "directory": "node"
   },
   "bugs": {
@@ -59,18 +59,18 @@
   "devDependencies": {
     "@neon-rs/cli": "^0.2.6",
     "@types/node": "^22.20.1",
-    "typescript": "^5.8.3"
+    "typescript": "^7.0.2"
   },
   "optionalDependencies": {
-    "@spinualexandru/fsmanifest-darwin-arm64": "0.1.0",
-    "@spinualexandru/fsmanifest-darwin-x64": "0.1.0",
-    "@spinualexandru/fsmanifest-linux-arm64-gnu": "0.1.0",
-    "@spinualexandru/fsmanifest-linux-x64-gnu": "0.1.0",
-    "@spinualexandru/fsmanifest-win32-x64-msvc": "0.1.0"
+    "@okei/fsmanifest-darwin-arm64": "0.1.1",
+    "@okei/fsmanifest-darwin-x64": "0.1.1",
+    "@okei/fsmanifest-linux-arm64-gnu": "0.1.1",
+    "@okei/fsmanifest-linux-x64-gnu": "0.1.1",
+    "@okei/fsmanifest-win32-x64-msvc": "0.1.1"
   },
   "neon": {
     "type": "library",
-    "org": "@spinualexandru",
+    "org": "@okei",
     "prefix": "fsmanifest-",
     "platforms": "desktop",
     "load": "native.cjs"
