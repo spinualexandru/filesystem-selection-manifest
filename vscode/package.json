@@ -19,7 +19,7 @@
     "url": "https://github.com/spinualexandru/filesystem-selection-manifest/issues"
   },
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.134.0"
   },
   "categories": [
     "Programming Languages",
@@ -103,10 +103,10 @@
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {
-    "@types/node": "^22.15.0",
-    "@types/vscode": "^1.90.0",
+    "@types/node": "^26.4.0",
+    "@types/vscode": "^1.134.0",
     "@vscode/vsce": "^3.9.2",
-    "esbuild": "^0.28.1",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vscode-languageclient": "^10.1.0"
   }

@@ -244,7 +244,7 @@ fn position_at(text: &str, byte_offset: usize) -> Position {
 mod tests {
     use std::{str::FromStr, thread};
 
-    use lsp_server::{Message, Notification, Request, RequestId, ResponseKind};
+    use lsp_server::{Message, Notification, Request, RequestId};
     use lsp_types::{
         DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
         PublishDiagnosticsParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
@@ -292,7 +292,7 @@ mod tests {
         let Message::Response(initialize_response) = initialize_response else {
             panic!("expected initialize response");
         };
-        let ResponseKind::Ok { result } = initialize_response.response_kind else {
+        let Ok(result) = initialize_response.response_result else {
             panic!("expected successful initialize response");
         };
         assert_eq!(result["capabilities"]["positionEncoding"], "utf-16");

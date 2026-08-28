@@ -27,7 +27,7 @@ concurrency:
 
 env:
   NODE_VERSION: "22"
-  RUST_VERSION: "1.85"
+  RUST_VERSION: "1.88"
 
 jobs:
   validate:
