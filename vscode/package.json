@@ -19,7 +19,7 @@
     "url": "https://github.com/spinualexandru/filesystem-selection-manifest/issues"
   },
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.134.0"
   },
   "categories": [
     "Programming Languages",
