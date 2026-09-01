@@ -39,6 +39,28 @@ pub enum ResolvedEntryKind {
     Other,
 }
 
+struct PendingEntry {
+    path: PathBuf,
+    kind: ResolvedEntryKind,
+    children: PendingEntries,
+}
+
+type PendingEntries = BTreeMap<OsString, PendingEntry>;
+
+impl PendingEntry {
+    fn into_resolved(self) -> ResolvedEntry {
+        ResolvedEntry {
+            path: self.path,
+            kind: self.kind,
+            children: self
+                .children
+                .into_values()
+                .map(Self::into_resolved)
+                .collect(),
+        }
+    }
+}
+
 /// An error encountered while resolving a manifest against the filesystem.
 #[derive(Debug)]
 pub enum ResolveError {
@@ -109,7 +131,10 @@ pub fn resolve_manifest(
 
     Ok(ResolvedTree {
         root,
-        entries: entries.into_values().collect(),
+        entries: entries
+            .into_values()
+            .map(PendingEntry::into_resolved)
+            .collect(),
     })
 }
 
@@ -117,7 +142,7 @@ fn resolve_entries(
     directory: &Path,
     directives: &[Entry],
     recursive_depth: Option<usize>,
-) -> Result<BTreeMap<OsString, ResolvedEntry>, ResolveError> {
+) -> Result<PendingEntries, ResolveError> {
     let exclusions = directives
         .iter()
         .filter_map(|entry| match entry {
@@ -180,9 +205,7 @@ fn resolve_entries(
                     continue;
                 }
 
-                let children = resolve_entries(&full_path, entries, recursive_depth)?
-                    .into_values()
-                    .collect();
+                let children = resolve_entries(&full_path, entries, recursive_depth)?;
                 insert_literal(&mut resolved, directory, &relative, Some(children))?;
             }
         }
@@ -195,7 +218,7 @@ fn resolve_recursive_git_aware(
     directory: &Path,
     max_depth: Option<usize>,
     exclusions: &[PathBuf],
-) -> Result<BTreeMap<OsString, ResolvedEntry>, ResolveError> {
+) -> Result<PendingEntries, ResolveError> {
     if let Some(ignore_root) = find_git_ignore_root(directory) {
         return resolve_recursive_with_git_ignores(
             directory,
@@ -215,7 +238,7 @@ fn resolve_recursive_outside_git_repository(
     level: usize,
     max_depth: Option<usize>,
     exclusions: &[PathBuf],
-) -> Result<BTreeMap<OsString, ResolvedEntry>, ResolveError> {
+) -> Result<PendingEntries, ResolveError> {
     let mut resolved = BTreeMap::new();
 
     for (name, mut entry) in read_children(directory)? {
@@ -235,8 +258,6 @@ fn resolve_recursive_outside_git_repository(
                     remaining_depth,
                     exclusions,
                 )?
-                .into_values()
-                .collect()
             } else {
                 resolve_recursive_outside_git_repository(
                     &entry.path,
@@ -245,8 +266,6 @@ fn resolve_recursive_outside_git_repository(
                     max_depth,
                     exclusions,
                 )?
-                .into_values()
-                .collect()
             };
         }
         resolved.insert(name, entry);
@@ -261,7 +280,7 @@ fn resolve_recursive_with_git_ignores(
     relative_prefix: &Path,
     max_depth: Option<usize>,
     exclusions: &[PathBuf],
-) -> Result<BTreeMap<OsString, ResolvedEntry>, ResolveError> {
+) -> Result<PendingEntries, ResolveError> {
     let is_repository = is_git_repository_root(ignore_root);
     let filter_root = directory.to_path_buf();
     let filter_prefix = relative_prefix.to_path_buf();
@@ -283,10 +302,14 @@ fn resolve_recursive_with_git_ignores(
                 .path()
                 .strip_prefix(&filter_root)
                 .unwrap_or(entry.path());
-            let manifest_relative = filter_prefix.join(relative);
-            relative.as_os_str().is_empty()
-                || (entry.file_name() != OsStr::new(".git")
-                    && !is_excluded(&manifest_relative, &filter_exclusions))
+            if relative.as_os_str().is_empty() {
+                return true;
+            }
+            if entry.file_name() == OsStr::new(".git") {
+                return false;
+            }
+            filter_exclusions.is_empty()
+                || !is_excluded(&filter_prefix.join(relative), &filter_exclusions)
         });
 
     let mut resolved = BTreeMap::new();
@@ -308,7 +331,12 @@ fn resolve_recursive_with_git_ignores(
         if relative.as_os_str().is_empty() {
             continue;
         }
-        insert_literal(&mut resolved, directory, relative, None)?;
+        let kind = kind_from_file_type(
+            entry
+                .file_type()
+                .expect("walked filesystem entries always have a file type"),
+        );
+        insert_walked_entry(&mut resolved, relative, entry.path().to_path_buf(), kind);
     }
     Ok(resolved)
 }
@@ -334,7 +362,7 @@ fn resolve_recursive(
     level: usize,
     max_depth: Option<usize>,
     exclusions: &[PathBuf],
-) -> Result<BTreeMap<OsString, ResolvedEntry>, ResolveError> {
+) -> Result<PendingEntries, ResolveError> {
     let mut resolved = BTreeMap::new();
 
     for (name, mut entry) in read_children(directory)? {
@@ -346,9 +374,7 @@ fn resolve_recursive(
         if entry.kind == ResolvedEntryKind::Directory && max_depth.is_none_or(|depth| level < depth)
         {
             entry.children =
-                resolve_recursive(&entry.path, &relative, level + 1, max_depth, exclusions)?
-                    .into_values()
-                    .collect();
+                resolve_recursive(&entry.path, &relative, level + 1, max_depth, exclusions)?;
         }
         resolved.insert(name, entry);
     }
@@ -356,7 +382,7 @@ fn resolve_recursive(
     Ok(resolved)
 }
 
-fn read_children(directory: &Path) -> Result<BTreeMap<OsString, ResolvedEntry>, ResolveError> {
+fn read_children(directory: &Path) -> Result<PendingEntries, ResolveError> {
     let children = fs::read_dir(directory).map_err(|source| ResolveError::ReadDirectory {
         path: directory.to_path_buf(),
         source,
@@ -369,14 +395,20 @@ fn read_children(directory: &Path) -> Result<BTreeMap<OsString, ResolvedEntry>, 
             source,
         })?;
         let path = child.path();
-        let kind = entry_kind(&path)?;
+        let file_type = child
+            .file_type()
+            .map_err(|source| ResolveError::ReadMetadata {
+                path: path.clone(),
+                source,
+            })?;
+        let kind = kind_from_file_type(file_type);
         let name = child.file_name();
         resolved.insert(
             name,
-            ResolvedEntry {
+            PendingEntry {
                 path,
                 kind,
-                children: Vec::new(),
+                children: BTreeMap::new(),
             },
         );
     }
@@ -385,10 +417,10 @@ fn read_children(directory: &Path) -> Result<BTreeMap<OsString, ResolvedEntry>, 
 }
 
 fn insert_literal(
-    entries: &mut BTreeMap<OsString, ResolvedEntry>,
+    entries: &mut PendingEntries,
     directory: &Path,
     relative: &Path,
-    final_children: Option<Vec<ResolvedEntry>>,
+    final_children: Option<PendingEntries>,
 ) -> Result<(), ResolveError> {
     let components = relative
         .components()
@@ -402,10 +434,10 @@ fn insert_literal(
 }
 
 fn insert_literal_components(
-    entries: &mut BTreeMap<OsString, ResolvedEntry>,
+    entries: &mut PendingEntries,
     directory: &Path,
     components: &[OsString],
-    final_children: Option<Vec<ResolvedEntry>>,
+    final_children: Option<PendingEntries>,
 ) -> Result<(), ResolveError> {
     let Some((name, remaining)) = components.split_first() else {
         return Ok(());
@@ -414,17 +446,15 @@ fn insert_literal_components(
     let Some(kind) = entry_kind_if_present(&path)? else {
         return Ok(());
     };
-    let entry = entries
-        .entry(name.clone())
-        .or_insert_with(|| ResolvedEntry {
-            path: path.clone(),
-            kind,
-            children: Vec::new(),
-        });
+    let entry = entries.entry(name.clone()).or_insert_with(|| PendingEntry {
+        path: path.clone(),
+        kind,
+        children: BTreeMap::new(),
+    });
 
     if remaining.is_empty() {
         if let Some(children) = final_children {
-            merge_children(&mut entry.children, children);
+            merge_entries(&mut entry.children, children);
         }
         return Ok(());
     }
@@ -432,44 +462,56 @@ fn insert_literal_components(
         return Ok(());
     }
 
-    let mut children = std::mem::take(&mut entry.children)
-        .into_iter()
-        .map(|child| (entry_name(&child).to_os_string(), child))
-        .collect();
-    insert_literal_components(&mut children, &path, remaining, final_children)?;
-    entry.children = children.into_values().collect();
-    Ok(())
+    insert_literal_components(&mut entry.children, &path, remaining, final_children)
 }
 
-fn merge_entry(
-    entries: &mut BTreeMap<OsString, ResolvedEntry>,
-    name: OsString,
-    entry: ResolvedEntry,
+fn insert_walked_entry(
+    entries: &mut PendingEntries,
+    relative: &Path,
+    path: PathBuf,
+    kind: ResolvedEntryKind,
 ) {
+    let components = relative
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(name) => Some(name),
+            Component::CurDir => None,
+            _ => unreachable!("walked entries are below the recursive root"),
+        })
+        .collect::<Vec<_>>();
+    let Some((name, parents)) = components.split_last() else {
+        return;
+    };
+    let mut children = entries;
+    for parent in parents {
+        children = &mut children
+            .get_mut(*parent)
+            .expect("directory walkers visit parents before their children")
+            .children;
+    }
+    children.insert(
+        (*name).to_os_string(),
+        PendingEntry {
+            path,
+            kind,
+            children: BTreeMap::new(),
+        },
+    );
+}
+
+fn merge_entry(entries: &mut PendingEntries, name: OsString, entry: PendingEntry) {
     match entries.get_mut(&name) {
-        Some(existing) => merge_children(&mut existing.children, entry.children),
+        Some(existing) => merge_entries(&mut existing.children, entry.children),
         None => {
             entries.insert(name, entry);
         }
     }
 }
 
-fn merge_children(existing: &mut Vec<ResolvedEntry>, additional: Vec<ResolvedEntry>) {
-    let mut merged = existing
-        .drain(..)
-        .map(|entry| (entry_name(&entry).to_os_string(), entry))
-        .collect::<BTreeMap<_, _>>();
-    for entry in additional {
-        merge_entry(&mut merged, entry_name(&entry).to_os_string(), entry);
+fn merge_entries(existing: &mut PendingEntries, additional: PendingEntries) {
+    for (name, entry) in additional {
+        merge_entry(existing, name, entry);
     }
-    *existing = merged.into_values().collect();
-}
-
-fn entry_name(entry: &ResolvedEntry) -> &OsStr {
-    entry
-        .path
-        .file_name()
-        .expect("resolved entries always have a file name")
 }
 
 fn entry_kind_if_present(path: &Path) -> Result<Option<ResolvedEntryKind>, ResolveError> {
@@ -481,13 +523,6 @@ fn entry_kind_if_present(path: &Path) -> Result<Option<ResolvedEntryKind>, Resol
             source,
         }),
     }
-}
-
-fn entry_kind(path: &Path) -> Result<ResolvedEntryKind, ResolveError> {
-    entry_kind_if_present(path)?.ok_or_else(|| ResolveError::ReadMetadata {
-        path: path.to_path_buf(),
-        source: io::Error::new(io::ErrorKind::NotFound, "entry disappeared while resolving"),
-    })
 }
 
 fn kind_from_file_type(file_type: fs::FileType) -> ResolvedEntryKind {
@@ -634,6 +669,28 @@ mod tests {
     }
 
     #[test]
+    fn overlapping_directives_merge_without_duplicates_or_lost_children() {
+        let directory = TestDirectory::new();
+        directory.create_file("folder/deep/file.txt");
+        directory.create_file("folder/shallow.txt");
+        let manifest = parse_manifest("folder/deep/file.txt\n***\nfolder {\n  *\n}\n").unwrap();
+
+        let tree = resolve_manifest(&manifest, &directory.0, None).unwrap();
+
+        assert_eq!(
+            relative_paths(&tree),
+            [
+                "folder",
+                "folder/deep",
+                "folder/deep/file.txt",
+                "folder/shallow.txt",
+            ]
+            .map(PathBuf::from)
+            .to_vec()
+        );
+    }
+
+    #[test]
     fn git_aware_recursion_applies_gitignore_with_or_without_repository_metadata() {
         let directory = TestDirectory::new();
         directory.create_file("outside/.gitignore");
@@ -681,6 +738,27 @@ mod tests {
 
         assert!(paths.contains(&PathBuf::from("repo/.git")));
         assert!(paths.contains(&PathBuf::from("repo/ignored.txt")));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_aware_recursion_selects_symlinks_without_following_them() {
+        let directory = TestDirectory::new();
+        directory.create_directory(".git");
+        directory.create_file("target/nested.txt");
+        std::os::unix::fs::symlink("target", directory.0.join("link")).unwrap();
+        let manifest = parse_manifest("**\n").unwrap();
+
+        let tree = resolve_manifest(&manifest, &directory.0, None).unwrap();
+        let link = tree
+            .entries
+            .iter()
+            .find(|entry| entry.path.ends_with("link"))
+            .unwrap();
+
+        assert_eq!(link.kind, ResolvedEntryKind::Symlink);
+        assert!(link.children.is_empty());
+        assert!(!relative_paths(&tree).contains(&PathBuf::from("link/nested.txt")));
     }
 
     #[test]
