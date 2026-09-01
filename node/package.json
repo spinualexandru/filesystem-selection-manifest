@@ -1,6 +1,6 @@
 {
   "name": "fsmanifest",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "TypeScript API for loading, validating, and resolving fsman manifests",
   "author": {
     "name": "Alex Spinu",
@@ -62,11 +62,11 @@
     "typescript": "^7.0.2"
   },
   "optionalDependencies": {
-    "@okei/fsmanifest-darwin-arm64": "0.1.1",
-    "@okei/fsmanifest-darwin-x64": "0.1.1",
-    "@okei/fsmanifest-linux-arm64-gnu": "0.1.1",
-    "@okei/fsmanifest-linux-x64-gnu": "0.1.1",
-    "@okei/fsmanifest-win32-x64-msvc": "0.1.1"
+    "@okei/fsmanifest-darwin-arm64": "0.1.2",
+    "@okei/fsmanifest-darwin-x64": "0.1.2",
+    "@okei/fsmanifest-linux-arm64-gnu": "0.1.2",
+    "@okei/fsmanifest-linux-x64-gnu": "0.1.2",
+    "@okei/fsmanifest-win32-x64-msvc": "0.1.2"
   },
   "neon": {
     "type": "library",

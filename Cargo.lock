@@ -84,7 +84,7 @@ dependencies = [
 
 [[package]]
 name = "fsman"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ignore",
  "pest",
@@ -93,7 +93,7 @@ dependencies = [
 
 [[package]]
 name = "fsman-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "fsman",
  "serde_json",
@@ -101,7 +101,7 @@ dependencies = [
 
 [[package]]
 name = "fsman-lsp"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "fsman",
  "lsp-server",
@@ -111,7 +111,7 @@ dependencies = [
 
 [[package]]
 name = "fsman-node"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "fsman",
  "neon",
