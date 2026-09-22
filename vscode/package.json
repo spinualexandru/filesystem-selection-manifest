@@ -103,11 +103,11 @@
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {
-    "@types/node": "^26.4.0",
-    "@types/vscode": "^1.134.0",
-    "@vscode/vsce": "^3.9.2",
+    "@types/node": "^26.6.2",
+    "@types/vscode": "^1.138.0",
+    "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
-    "vscode-languageclient": "^10.1.0"
+    "vscode-languageclient": "^10.1.1"
   }
 }
