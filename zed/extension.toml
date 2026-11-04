@@ -1,6 +1,6 @@
 id = "fsman"
 name = "fsman"
-version = "0.1.0"
+version = "0.1.1"
 schema_version = 1
 authors = ["Alex Spinu <spinualexandru@outlook.com>"]
 description = "Language support and diagnostics for fsman manifests."

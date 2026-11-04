@@ -18,6 +18,8 @@ parser errors as you type by running `fsman-lsp` over standard input/output.
 
 ## Requirements
 
+Use Visual Studio Code 1.144.0 or newer.
+
 Install `fsman-lsp` and ensure it is on `PATH`:
 
 ```sh
@@ -51,9 +53,15 @@ also restarts it automatically when those settings change.
 ```sh
 cd vscode
 npm ci
+npm test
 npm run check
 npm run compile
 ```
+
+The dependency overrides select patched `minimatch` 11 for the language client
+and packaging tool. `npm ci` applies a small compatibility patch to the language
+client because version 11 no longer provides `makeRe()`. Remove the patch and
+overrides when those dependencies support `minimatch` 11 directly.
 
 Open the `vscode` directory in VS Code and run the **Run Extension** launch
 configuration. To build an installable package, run

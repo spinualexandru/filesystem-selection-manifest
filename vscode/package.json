@@ -2,7 +2,7 @@
   "name": "fsman",
   "displayName": "fsman",
   "description": "Language support and diagnostics for fsman manifests.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Alex Spinu",
     "email": "spinualexandru@outlook.com"
@@ -19,7 +19,7 @@
     "url": "https://github.com/spinualexandru/filesystem-selection-manifest/issues"
   },
   "engines": {
-    "vscode": "^1.134.0"
+    "vscode": "^1.144.0"
   },
   "categories": [
     "Programming Languages",
@@ -100,14 +100,24 @@
     "check": "tsc -p ./ --noEmit",
     "package": "vsce package --no-dependencies",
     "publish:marketplace": "vsce publish --no-dependencies",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "npm run compile",
+    "postinstall": "node scripts/patch-languageclient.mjs",
+    "test": "node --test tests/*.test.mjs"
   },
   "devDependencies": {
-    "@types/node": "^26.6.2",
-    "@types/vscode": "^1.138.0",
-    "@vscode/vsce": "^4.0.0",
+    "@types/node": "^26.6.6",
+    "@types/vscode": "^1.144.0",
+    "@vscode/vsce": "^4.1.0",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
-    "vscode-languageclient": "^10.1.1"
+    "vscode-languageclient": "^11.0.0"
+  },
+  "overrides": {
+    "@vscode/vsce": {
+      "minimatch": "^11.0.4"
+    },
+    "vscode-languageclient": {
+      "minimatch": "^11.0.4"
+    }
   }
 }
