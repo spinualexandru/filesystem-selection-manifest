@@ -3,10 +3,6 @@ name: Publish release
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: Existing release tag, for example v0.1.0
-        required: true
-        type: string
       publish_cargo:
         description: Publish fsman, fsman-cli, and fsman-lsp to crates.io
         required: true
@@ -22,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-${{ inputs.tag }}
+  group: publish-release
   cancel-in-progress: false
 
 env:
@@ -33,16 +29,37 @@ jobs:
   validate:
     name: Validate release
     runs-on: ubuntu-24.04
-    env:
-      RELEASE_TAG: ${{ inputs.tag }}
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
     steps:
-      - name: Check out the release tag
+      - name: Check out the workflow revision and all tags
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ inputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Test release tag selection
+        run: node --test .github/scripts/select-release-tag.test.mjs
+
+      - name: Select the latest release tag
+        id: release
+        run: node .github/scripts/select-release-tag.mjs
+
+      - name: Check out the selected release commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.release.outputs.sha }}
+          fetch-depth: 0
 
       - name: Validate the tag
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         shell: bash
         run: |
           if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
@@ -64,12 +81,6 @@ jobs:
         run: |
           rustup toolchain install "$RUST_VERSION" --profile minimal --no-self-update
           rustup default "$RUST_VERSION"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          package-manager-cache: false
 
       - name: Check package versions
         run: node .github/scripts/check-release-version.mjs "$RELEASE_VERSION"
@@ -126,7 +137,7 @@ jobs:
       - name: Check out the release tag
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ needs.validate.outputs.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -174,14 +185,16 @@ jobs:
     needs: validate
     runs-on: ubuntu-24.04
     environment: release
+    permissions:
+      contents: read
+      id-token: write
     env:
-      CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-      RELEASE_TAG: ${{ inputs.tag }}
+      RELEASE_TAG: ${{ needs.validate.outputs.tag }}
     steps:
       - name: Check out the release tag
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ needs.validate.outputs.sha }}
 
       - name: Set up Rust
         shell: bash
@@ -189,7 +202,13 @@ jobs:
           rustup toolchain install "$RUST_VERSION" --profile minimal --no-self-update
           rustup default "$RUST_VERSION"
 
+      - name: Authenticate with crates.io
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+
       - name: Publish crates in dependency order
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         shell: bash
         run: |
           version="${RELEASE_TAG#v}"
@@ -240,7 +259,7 @@ jobs:
       - name: Check out the release tag
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ needs.validate.outputs.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v6

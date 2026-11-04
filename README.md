@@ -122,16 +122,33 @@ configured explicitly in the editor.
 ## Publishing
 
 Publishing is handled by the manually triggered `Publish release` GitHub
-Actions workflow. Create and push a semantic-version tag such as `v0.1.0`, then
-run the workflow for that tag from the Actions tab. The workflow verifies that
-the tag matches all Cargo and npm versions before publishing anything.
+Actions workflow. Create and push a semantic-version tag such as `v0.1.5`, then
+run the workflow from the Actions tab on the default branch. It automatically
+selects the highest semantic-version tag, including prereleases; a stable
+release ranks above prereleases of the same version. No tag input is needed.
+The workflow verifies that the tag matches all Cargo and npm versions before
+publishing anything, and every job uses the same selected commit.
 
-The `release` GitHub environment needs a `CRATES_IO_TOKEN` secret. npm packages
-use OIDC trusted publishing configured for `publish.yml` and the `release`
-environment, so no npm token is stored in GitHub. Configure that trusted
-publisher on `fsmanifest` and on each `@okei/fsmanifest-*` native package. The
-npm account must own the `@okei` scope. Cargo and npm
-publishing can be enabled independently in the workflow form.
+Cargo and npm use OIDC trusted publishing with the `release` GitHub environment.
+The Cargo job exchanges its GitHub identity for a short-lived crates.io token;
+no `CRATES_IO_TOKEN` secret is required.
+
+Configure a GitHub Actions trusted publisher in the crates.io settings of each
+crate: `fsman`, `fsman-cli`, and `fsman-lsp`. Use these values:
+
+- Repository owner: `spinualexandru`
+- Repository name: `filesystem-selection-manifest`
+- Workflow filename: `publish.yml`
+- Environment: `release`
+
+See the [crates.io trusted publishing documentation](https://crates.io/docs/trusted-publishing)
+for setup details. The workflow can authenticate only after those publisher
+configurations exist.
+
+Configure npm trusted publishing with the same repository, workflow, and
+environment on `fsmanifest` and each `@okei/fsmanifest-*` native package. The
+npm account must own the `@okei` scope. Cargo and npm publishing can be enabled
+independently in the workflow form.
 
 ## Workspace layout
 

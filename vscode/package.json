@@ -2,7 +2,7 @@
   "name": "fsman",
   "displayName": "fsman",
   "description": "Language support and diagnostics for fsman manifests.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": {
     "name": "Alex Spinu",
     "email": "spinualexandru@outlook.com"
