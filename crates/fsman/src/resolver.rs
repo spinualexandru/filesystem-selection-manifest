@@ -4,6 +4,7 @@ use std::{
     ffi::{OsStr, OsString},
     fmt, fs, io,
     path::{Component, Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 
 use ignore::WalkBuilder;
@@ -219,10 +220,22 @@ fn resolve_recursive_git_aware(
     max_depth: Option<usize>,
     exclusions: &[PathBuf],
 ) -> Result<PendingEntries, ResolveError> {
-    if let Some(ignore_root) = find_git_ignore_root(directory) {
+    // The repository root must be located independently of the nearest
+    // `.gitignore`: a subdirectory with its own `.gitignore` is still inside
+    // the repository, so global and `info/exclude` rules continue to apply.
+    if let Some(repository_root) = find_git_repository_root(directory) {
         return resolve_recursive_with_git_ignores(
             directory,
-            &ignore_root,
+            Some(&repository_root),
+            Path::new(""),
+            max_depth,
+            exclusions,
+        );
+    }
+    if has_git_ignore_ancestor(directory) {
+        return resolve_recursive_with_git_ignores(
+            directory,
+            None,
             Path::new(""),
             max_depth,
             exclusions,
@@ -249,11 +262,19 @@ fn resolve_recursive_outside_git_repository(
 
         if entry.kind == ResolvedEntryKind::Directory && max_depth.is_none_or(|depth| level < depth)
         {
-            entry.children = if is_git_ignore_root(&entry.path) {
-                let remaining_depth = max_depth.map(|depth| depth - level);
+            let remaining_depth = max_depth.map(|depth| depth - level);
+            entry.children = if is_git_repository_root(&entry.path) {
                 resolve_recursive_with_git_ignores(
                     &entry.path,
+                    Some(&entry.path),
+                    &relative,
+                    remaining_depth,
+                    exclusions,
+                )?
+            } else if has_git_ignore_file(&entry.path) {
+                resolve_recursive_with_git_ignores(
                     &entry.path,
+                    None,
                     &relative,
                     remaining_depth,
                     exclusions,
@@ -274,17 +295,25 @@ fn resolve_recursive_outside_git_repository(
     Ok(resolved)
 }
 
+/// Walk `directory` while honoring Git ignore rules.
+///
+/// With a `repository_root`, `.gitignore`, `.git/info/exclude`, and global
+/// ignore rules all apply. Without one, only `.gitignore` files apply, and any
+/// nested repository is resolved separately so it receives full repository
+/// rules instead of inheriting the outer directory's `.gitignore` files.
 fn resolve_recursive_with_git_ignores(
     directory: &Path,
-    ignore_root: &Path,
+    repository_root: Option<&Path>,
     relative_prefix: &Path,
     max_depth: Option<usize>,
     exclusions: &[PathBuf],
 ) -> Result<PendingEntries, ResolveError> {
-    let is_repository = is_git_repository_root(ignore_root);
+    let is_repository = repository_root.is_some();
     let filter_root = directory.to_path_buf();
     let filter_prefix = relative_prefix.to_path_buf();
     let filter_exclusions = exclusions.to_vec();
+    let nested_repositories = Arc::new(Mutex::new(Vec::new()));
+    let filter_nested_repositories = Arc::clone(&nested_repositories);
     let mut walker = WalkBuilder::new(directory);
     walker
         .standard_filters(false)
@@ -295,7 +324,7 @@ fn resolve_recursive_with_git_ignores(
         .require_git(is_repository)
         .follow_links(false)
         .max_depth(max_depth)
-        .current_dir(ignore_root)
+        .current_dir(repository_root.unwrap_or(directory))
         .sort_by_file_name(OsStr::cmp)
         .filter_entry(move |entry| {
             let relative = entry
@@ -308,8 +337,24 @@ fn resolve_recursive_with_git_ignores(
             if entry.file_name() == OsStr::new(".git") {
                 return false;
             }
-            filter_exclusions.is_empty()
-                || !is_excluded(&filter_prefix.join(relative), &filter_exclusions)
+            if !filter_exclusions.is_empty()
+                && is_excluded(&filter_prefix.join(relative), &filter_exclusions)
+            {
+                return false;
+            }
+            if !is_repository
+                && entry
+                    .file_type()
+                    .is_some_and(|file_type| file_type.is_dir())
+                && is_git_repository_root(entry.path())
+            {
+                filter_nested_repositories
+                    .lock()
+                    .expect("the nested repository list is never poisoned")
+                    .push((relative.to_path_buf(), entry.depth()));
+                return false;
+            }
+            true
         });
 
     let mut resolved = BTreeMap::new();
@@ -336,20 +381,59 @@ fn resolve_recursive_with_git_ignores(
                 .file_type()
                 .expect("walked filesystem entries always have a file type"),
         );
-        insert_walked_entry(&mut resolved, relative, entry.path().to_path_buf(), kind);
+        insert_walked_entry(
+            &mut resolved,
+            relative,
+            entry.path().to_path_buf(),
+            kind,
+            BTreeMap::new(),
+        );
     }
+
+    let nested_repositories = std::mem::take(
+        &mut *nested_repositories
+            .lock()
+            .expect("the nested repository list is never poisoned"),
+    );
+    for (relative, depth) in nested_repositories {
+        let path = directory.join(&relative);
+        let remaining_depth = max_depth.map(|max_depth| max_depth - depth);
+        let children = if remaining_depth == Some(0) {
+            BTreeMap::new()
+        } else {
+            resolve_recursive_with_git_ignores(
+                &path,
+                Some(&path),
+                &relative_prefix.join(&relative),
+                remaining_depth,
+                exclusions,
+            )?
+        };
+        insert_walked_entry(
+            &mut resolved,
+            &relative,
+            path,
+            ResolvedEntryKind::Directory,
+            children,
+        );
+    }
+
     Ok(resolved)
 }
 
-fn find_git_ignore_root(directory: &Path) -> Option<PathBuf> {
+fn find_git_repository_root(directory: &Path) -> Option<PathBuf> {
     directory
         .ancestors()
-        .find(|ancestor| is_git_ignore_root(ancestor))
+        .find(|ancestor| is_git_repository_root(ancestor))
         .map(Path::to_path_buf)
 }
 
-fn is_git_ignore_root(directory: &Path) -> bool {
-    is_git_repository_root(directory) || directory.join(".gitignore").is_file()
+fn has_git_ignore_ancestor(directory: &Path) -> bool {
+    directory.ancestors().any(has_git_ignore_file)
+}
+
+fn has_git_ignore_file(directory: &Path) -> bool {
+    directory.join(".gitignore").is_file()
 }
 
 fn is_git_repository_root(directory: &Path) -> bool {
@@ -470,6 +554,7 @@ fn insert_walked_entry(
     relative: &Path,
     path: PathBuf,
     kind: ResolvedEntryKind,
+    children_of_entry: PendingEntries,
 ) {
     let components = relative
         .components()
@@ -494,7 +579,7 @@ fn insert_walked_entry(
         PendingEntry {
             path,
             kind,
-            children: BTreeMap::new(),
+            children: children_of_entry,
         },
     );
 }
@@ -721,6 +806,83 @@ mod tests {
             ]
             .map(PathBuf::from)
             .to_vec()
+        );
+    }
+
+    #[test]
+    fn git_aware_recursion_in_subdirectory_with_gitignore_keeps_repository_ignores() {
+        let directory = TestDirectory::new();
+        directory.create_file(".git/info/exclude");
+        fs::write(directory.0.join(".git/info/exclude"), "excluded.txt\n").unwrap();
+        directory.create_file("sub/.gitignore");
+        fs::write(directory.0.join("sub/.gitignore"), "ignored.txt\n").unwrap();
+        directory.create_file("sub/excluded.txt");
+        directory.create_file("sub/ignored.txt");
+        directory.create_file("sub/keep.txt");
+
+        let nested = resolve_manifest(
+            &parse_manifest("sub {\n  **\n}\n").unwrap(),
+            &directory.0,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            relative_paths(&nested),
+            ["sub", "sub/.gitignore", "sub/keep.txt"]
+                .map(PathBuf::from)
+                .to_vec()
+        );
+
+        let rooted = resolve_manifest(
+            &parse_manifest("**\n").unwrap(),
+            directory.0.join("sub"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            relative_paths(&rooted),
+            [".gitignore", "keep.txt"].map(PathBuf::from).to_vec()
+        );
+    }
+
+    #[test]
+    fn git_aware_recursion_outside_repository_applies_nested_repository_ignores() {
+        let directory = TestDirectory::new();
+        directory.create_file("outside/.gitignore");
+        fs::write(directory.0.join("outside/.gitignore"), "outer-only.txt\n").unwrap();
+        directory.create_file("outside/repo/.git/info/exclude");
+        fs::write(
+            directory.0.join("outside/repo/.git/info/exclude"),
+            "excluded.txt\n",
+        )
+        .unwrap();
+        directory.create_file("outside/repo/excluded.txt");
+        directory.create_file("outside/repo/keep.txt");
+        directory.create_file("outside/repo/outer-only.txt");
+        let manifest = parse_manifest("**\n").unwrap();
+
+        let tree = resolve_manifest(&manifest, &directory.0, None).unwrap();
+
+        assert_eq!(
+            relative_paths(&tree),
+            [
+                "outside",
+                "outside/.gitignore",
+                "outside/repo",
+                "outside/repo/keep.txt",
+                "outside/repo/outer-only.txt",
+            ]
+            .map(PathBuf::from)
+            .to_vec()
+        );
+
+        let limited = resolve_manifest(&manifest, &directory.0, Some(2)).unwrap();
+
+        assert_eq!(
+            relative_paths(&limited),
+            ["outside", "outside/.gitignore", "outside/repo"]
+                .map(PathBuf::from)
+                .to_vec()
         );
     }
 
